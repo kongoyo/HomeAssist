@@ -1,0 +1,80 @@
+{
+    "currentState": "stopped",
+    "states": {
+        "stopped": {
+            "fade-in": "increasing",
+            "fade-out": "decreasing"
+        },
+        "increasing": {
+            "increasing": "increasing",
+            "fade-out": "decreasing",
+            "stop": "stopped"
+        },
+        "decreasing": {
+            "decreasing": "decreasing",
+            "fade-in": "increasing",
+            "stop": "stopped"
+        }
+    },
+    "data": {
+      "brightness": 0,
+      "target": 0,
+      "step": 5,
+      "delay": 1000
+    },
+    "methods": {
+        "target": [
+            "sm.data.target = msg.payload;",
+            "msg.payload = sm.data.brightness;",
+            "if (sm.data.target >= sm.data.brightness) {",
+            "   sm.vector = 'increasing';",
+            "} else if (sm.data.target < sm.data.brightness) {",
+            "   sm.vector = 'decreasing';",
+            "}",
+            "if (timeout.id) {",
+            "   clearTimeout(timeout.id);",
+            "}",
+            "sm.currentState = sm.vector;",
+            "resume(sm.vector, msg);"
+        ],
+        "increasing": [
+            "if (msg.payload < sm.data.target) {",
+            "   if (msg.payload > sm.data.target) msg.payload = sm.data.target;",
+            "   sm.data.brightness = msg.payload;",
+            "   timeout.id = setTimeout(function() {",
+            "       msg.payload = msg.payload + sm.data.step;",
+            "       node.send(msg);",
+            "       resume('increasing', msg);",
+            "   }, sm.data.delay);",
+            "} else {",
+            "   sm.currentState = 'stopped';",
+            "}"
+        ],
+        "decreasing": [
+            "if (msg.payload > sm.data.target) {",
+            "   if (msg.payload < sm.data.target) msg.payload = sm.data.target;",
+            "   sm.data.brightness = msg.payload;",
+            "   timeout.id = setTimeout(function() {",
+            "       msg.payload = msg.payload - sm.data.step;",
+            "       node.send(msg);",
+            "       resume('decreasing', msg);",
+            "   }, sm.data.delay);",
+            "} else {",
+            "   sm.currentState = 'stopped';",
+            "}"
+        ],
+        "stop": [
+            "clearTimeout(timeout.id);"
+        ],
+        "onAfterTransition": "output = false;",
+        "status": {
+            "fill": {
+                "get": "sm.currentState==='increasing'?'yellow':sm.currentState==='decreasing'?'blue':'grey'"
+            },
+            "shape": "dot",
+            "text": {
+                "get": "sm.currentState"
+            }
+        }
+    }
+}

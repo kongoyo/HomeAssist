@@ -1,0 +1,115 @@
+{
+    "inputTrigger": "topic",
+    "stateOutput": "current",
+    "currentState": "stopped",
+    
+    "states": {
+        "stopped": {
+            "start": "started",
+            "stop": "stopped"
+        },
+        "started": {
+            "fade_in": "fade_in",
+            "fade_out": "fade_out",
+            "stop": "stopped"
+        },
+        "fade_in": {
+            "fade_in": "fade_in",
+            "stop": "stopped"
+        },
+        "fade_out": {
+            "fade_out": "fade_out",
+            "stop": "stopped"
+        }
+    },
+    "data": {
+        "initialdelay": 0,
+        "start": 0,
+        "end": 1,
+        "duration": 3000,
+        "step": 100,
+        "unit": "Milliseconds",
+        "factor": 1
+    },
+    "methods": {
+        "init": [
+            "sm.tick = function(tran, msg) {",
+            "   timeout.id = setTimeout(function() {",
+            "       sm.text = 'fading ' + sm.data.duration + ' ' + sm.data.unit + ' - ' + sm.data.actual;",
+            "       msg.payload = sm.data.actual;",
+            "       node.send(msg);",
+            "       resume(tran, msg);",
+            "   }, sm.data.step * sm.data.factor);",
+            "};",
+            "sm.factors = {'milliseconds': 1, 'seconds': 1000, 'minutes': 60000};",
+            "sta.fill = 'grey';"
+        ],
+        "start": [
+            "if (typeof msg.payload.initialdelay !== 'undefined') sm.data.initialdelay = msg.payload.initialdelay;",
+            "if (typeof msg.payload.start !== 'undefined') sm.data.start = msg.payload.start;",
+            "if (typeof msg.payload.end !== 'undefined') sm.data.end = msg.payload.end;",
+            "if (typeof msg.payload.duration !== 'undefined') sm.data.duration = msg.payload.duration;",
+            "if (typeof msg.payload.step !== 'undefined') sm.data.step = msg.payload.step;",
+            "if (typeof msg.payload.unit !== 'undefined') {",
+            "   if (sm.factors.hasOwnProperty(msg.payload.unit.toLowerCase())) {",
+            "       sm.data.factor = sm.factors[msg.payload.unit.toLowerCase()];",
+            "       sm.data.unit = msg.payload.unit;",
+            "   } else {",
+            "       node.warn('>' + msg.payload.unit + '< unknown, available: Milliseconds, Seconds, Minutes');",
+            "   };",
+            "} else {",
+            "   sm.data.factor = 1;",
+            "   sm.data.unit =  'Milliseconds';",
+            "};",
+            
+            "clearTimeout(timeout.id);",
+            "timeout.id = setTimeout(function() {",
+            "   sm.data.delta = (sm.data.step / sm.data.duration) * Math.abs(sm.data.start - sm.data.end);",
+            "   sm.data.actual = sm.data.start;",
+            
+            "   if (sm.data.end > sm.data.start) {",
+            "       sm.text = 'fade_in';",
+            "       resume('fade_in', msg);",
+            "   } else {",
+            "       sm.text = 'fade_out';",
+            "       resume('fade_out', msg);",
+            "   };",
+            "}, sm.data.initialdelay * sm.data.factor);",
+            "sm.text = 'initial delay ' + sm.data.initialdelay + ' ' + sm.data.unit;",
+            "msg.payload = sm.data.start;",
+            "node.send(msg);"
+        ],
+        "fade_in": [
+            "if (sm.data.actual < sm.data.end) {",
+            "   sm.data.actual = Math.round((sm.data.actual + sm.data.delta) * 100) / 100;",
+            "   if (sm.data.actual > sm.data.end) {sm.data.actual = sm.data.end;};",
+            "   sm.tick('fade_in', msg);",
+            "} else {",
+            "   resume('stop', msg);",
+            "};"
+        ],
+        "fade_out": [
+            "if (sm.data.actual > sm.data.end) {",
+            "   sm.data.actual = Math.round((sm.data.actual - sm.data.delta) * 100) / 100;",
+            "   if (sm.data.actual < sm.data.end) {sm.data.actual = sm.data.end;};",
+            "   sm.tick('fade_out', msg);",
+            "} else {",
+            "   resume('stop', msg);",
+            "};"
+        ],
+        "stop": [
+            "sm.text = sm.currentState;",
+            "clearTimeout(timeout.id);"
+        ],
+        "onAfterTransition": "output = false;",
+        "status": {
+            "fill": {
+                "get": "sm.currentState === 'stopped' ? 'grey': 'green';"
+            },
+            "shape": "dot",
+            "text": {
+                "get": "sm.text || sm.currentState;"
+            }
+        }
+    }
+}
