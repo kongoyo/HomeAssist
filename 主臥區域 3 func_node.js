@@ -6,9 +6,10 @@ const currentHour = now.getHours();
 const currentMinute = now.getMinutes();
 
 // 輸出陣列，每個元素對應一個輸出埠。null 表示不發送訊息。
-const outputs = [null, null, null]; // 預設三個輸出埠
+const outputs = [null, null, null, null]; 
 
-if (msg.payload.substring(0,7) === 'Has One') { 
+// if (msg.payload.substring(0, 7) === 'Has One') {
+if (msg.payload.startsWith('Has One')) {
     // 判斷是否在日常時段 (09:00 - 01:59)
     // 這包含了跨午夜的情況： 09:00 至 23:59 或 00:00 至 01:59
     if ((currentHour > 9 && currentHour <= 23) || (currentHour >= 0 && currentHour < 2)) {
@@ -28,7 +29,8 @@ if (msg.payload.substring(0,7) === 'Has One') {
         // outputs[0] = { payload: "on_default", topic: msg.topic }; // 範例：預設開燈
         node.status({ fill: "grey", shape: "dot", text: "主臥未定義時段有人" });
     }
-} else if (msg.payload === 'No One') {
+// } else if (msg.payload === 'No One') {
+} else if (msg.payload.startsWith('No One')) {
     // 當主臥無人時，發送一個信號到輸出 3，觸發關燈邏輯
     if ((currentHour > 9 && currentHour <= 23) || (currentHour >= 0 && currentHour < 2)) {
         // 發送到輸出 2，用於日常關閉主臥筒燈燈帶
