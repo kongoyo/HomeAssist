@@ -39,12 +39,12 @@ if (msg.payload === 'on') {
     }
 
     // Determine the immediate 'on' output based on time
-    if ((currentHour >= 16 && currentHour <= 23) || (currentHour >= 0 && currentHour < 2)) {
+    if ((currentHour >= 9 && currentHour <= 23) || (currentHour >= 0 && currentHour < 2)) {
         // Daily period: 16:00 ~ 01:59
         outputs[0] = { payload: "on_outputs[0]", topic: msg.topic };
-        node.status({ fill: "green", shape: "dot", text: "日常有人 (16:00-01:59)" });
-    } else if (currentHour >= 2 && currentHour < 16) {
-        // Night/Early Morning period: 02:00 ~ 15:59
+        node.status({ fill: "green", shape: "dot", text: "日常有人 (09:00-01:59)" });
+    } else if (currentHour >= 2 && currentHour < 9) {
+        // Night/Early Morning period: 02:00 ~ 08:59
         outputs[1] = { payload: "on_outputs[1]", topic: msg.topic };
         node.status({ fill: "blue", shape: "dot", text: "夜間/清晨有人 (02:00-15:59)" });
     }
@@ -84,7 +84,7 @@ if (msg.payload === 'on') {
     }
     // Do not return outputs here immediately for 'off' to avoid premature actions.
     // The outputs[3] will be sent when the noOneTimer fires.
-    return null; 
+    return null;
 } else {
     // Handle unexpected payload values
     node.status({ fill: "orange", shape: "dot", text: `未知狀態: ${msg.payload}` });

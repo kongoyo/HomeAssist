@@ -1,0 +1,1926 @@
+[
+    {
+        "id": "9af9b47406f54549",
+        "type": "inject",
+        "z": "459013ef34c440f3",
+        "name": "模擬玄關門由內部按鈕開鎖情境",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            },
+            {
+                "p": "data",
+                "v": "{\"new_state\":{\"attributes\":{\"Operation Method\":9,\"Operation Position\":1,\"Lock Action\":2}}}",
+                "vt": "json"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 190,
+        "y": 680,
+        "wires": [
+            [
+                "e9986cc50abd6e4d"
+            ]
+        ]
+    },
+    {
+        "id": "e9986cc50abd6e4d",
+        "type": "ha-get-entities",
+        "z": "459013ef34c440f3",
+        "name": "獲取所有成員定位",
+        "server": "c8d1196d.71bef8",
+        "version": 1,
+        "rules": [
+            {
+                "condition": "state_object",
+                "property": "entity_id",
+                "logic": "starts_with",
+                "value": "device_tracker.google_maps_",
+                "valueType": "str"
+            }
+        ],
+        "outputType": "array",
+        "outputEmptyResults": false,
+        "outputLocationType": "msg",
+        "outputLocation": "device_tracker",
+        "outputResultsCount": 1,
+        "x": 470,
+        "y": 740,
+        "wires": [
+            [
+                "8e643a0537a97804",
+                "592e909ff5f60690"
+            ]
+        ]
+    },
+    {
+        "id": "37e07389e689476a",
+        "type": "server-state-changed",
+        "z": "459013ef34c440f3",
+        "name": "玄關門由內部按鈕開鎖",
+        "server": "c8d1196d.71bef8",
+        "version": 6,
+        "outputs": 1,
+        "exposeAsEntityConfig": "",
+        "entities": {
+            "entity": [
+                "event.xiaomi_cn_1143722134_s20pro_lock_event_e_2_1020"
+            ],
+            "substring": [],
+            "regex": []
+        },
+        "outputInitially": false,
+        "stateType": "str",
+        "ifState": "",
+        "ifStateType": "str",
+        "ifStateOperator": "is",
+        "outputOnlyOnStateChange": true,
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "ignorePrevStateNull": false,
+        "ignorePrevStateUnknown": false,
+        "ignorePrevStateUnavailable": false,
+        "ignoreCurrentStateUnknown": false,
+        "ignoreCurrentStateUnavailable": false,
+        "outputProperties": [
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "eventData"
+            }
+        ],
+        "x": 220,
+        "y": 740,
+        "wires": [
+            [
+                "e9986cc50abd6e4d"
+            ]
+        ]
+    },
+    {
+        "id": "8357c3f80adc3c9a",
+        "type": "inject",
+        "z": "459013ef34c440f3",
+        "name": "模擬玄關門由外部任意方式開鎖",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            },
+            {
+                "p": "data",
+                "v": "{\"new_state\":{\"attributes\":{\"Operation Position\":2,\"Lock Action\":2}}}",
+                "vt": "json"
+            }
+        ],
+        "repeat": "",
+        "crontab": "",
+        "once": false,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 190,
+        "y": 800,
+        "wires": [
+            [
+                "e9986cc50abd6e4d"
+            ]
+        ]
+    },
+    {
+        "id": "8e643a0537a97804",
+        "type": "function",
+        "z": "459013ef34c440f3",
+        "name": "判斷返家/離家模式",
+        "func": "// Function Node: 回家模式控制邏輯\n// 根據門鎖開鎖事件與成員定位，判斷是開啟還是關閉離家模式。\n\n// --- 1. 門鎖事件檢查 ---\n// 安全地獲取門鎖事件的屬性\nconst attributes = msg.data?.new_state?.attributes;\n\n// 檢查屬性是否存在\nif (!attributes) {\n    node.warn(\"無法讀取門鎖事件屬性 (msg.data.new_state.attributes)，流程中止。\");\n    node.status({ fill: \"red\", shape: \"ring\", text: \"無門鎖事件\" });\n    return null;\n}\n\nconst opMethod = attributes['Operation Method'];\nconst opPosition = attributes['Operation Position'];\nconst lockAction = attributes['Lock Action'];\n\n// 定義有效的開鎖事件\n// 門內開鎖 (離家): {'Operation Method': 9, 'Operation Position': 1, 'Lock Action': 2}\nconst isInternalUnlock = (opMethod === 9 && opPosition === 1 && lockAction === 2);\n// 外部開鎖 (返家): {'Operation Position': 2, 'Lock Action': 2}\nconst isExternalUnlock = (opPosition === 2 && lockAction === 2);\n\n// 如果不是指定的開鎖事件，則中止流程\nif (!isInternalUnlock && !isExternalUnlock) {\n    const eventText = `Act:${lockAction},Pos:${opPosition},Met:${opMethod || 'N/A'}`;\n    node.status({ fill: \"grey\", shape: \"dot\", text: `非指定開鎖事件: ${eventText}` });\n    return null;\n}\n\n// --- 2. 成員定位檢查 (原有邏輯) ---\n\n// 從 msg 中獲取由 get-entities 節點準備好的 device_tracker 陣列\nconst device_trackers = msg.device_tracker;\n\n// 檢查 `device_trackers` 是否為一個有效的陣列，若否則發出警告並中止。\nif (!Array.isArray(device_trackers) || device_trackers.length === 0) {\n    node.warn(\"`msg.device_tracker` 不是一個有效的陣列或為空。請確保上游 Get Entities 節點的輸出類型設定為 'array' 且能正確獲取實體。\");\n    node.status({ fill: \"red\", shape: \"ring\", text: \"輸入資料錯誤\" });\n    return null; // 中止流程\n}\n\n// 從陣列中的每個實體物件中，提取 'state' 屬性，組成一個狀態陣列。\nconst trackerStates = device_trackers.map(entity => entity.state);\n\n// 判斷是否所有成員都不在家\nconst isEveryoneAway = trackerStates.every(state => state === 'not_home');\n\n// 判斷是否至少有一位成員在家\nconst isSomeoneHome = trackerStates.some(state => state === 'home');\n\n// --- 3. 模式判斷與輸出 ---\n// 準備輸出，預設為不觸發任何流程\n// outputs[0]: 有人回家 => 關閉離家模式 (觸發歡迎場景)\n// outputs[1]: 全員離家 => 開啟離家模式 (觸發關閉設備場景)\nconst outputs = [null, null];\n\nif (isEveryoneAway) {\n    // 所有成員都不在家，觸發開啟離家模式\n    outputs[1] = msg; // 將原始 msg 傳遞到第二個輸出\n    node.status({ fill: \"red\", shape: \"dot\", text: \"開啟離家模式\" });\n} else if (isSomeoneHome) {\n    // 至少有一位成員在家，觸發關閉離家模式\n    outputs[0] = msg; // 將原始 msg 傳遞到第一個輸出\n    node.status({ fill: \"green\", shape: \"dot\", text: \"關閉離家模式\" });\n} else {\n    // 處理其他狀態 (例如 'unknown', 'unavailable' 或混合狀態)\n    const currentState = trackerStates.join(', ');\n    node.status({ fill: \"grey\", shape: \"dot\", text: `狀態待定: ${currentState}` });\n}\n\nreturn outputs;",
+        "outputs": 2,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 730,
+        "y": 740,
+        "wires": [
+            [
+                "4c13f43125cedf9f",
+                "a7af20785e3e3424"
+            ],
+            [
+                "ed7969d447559446",
+                "6dd0aa75c6afad0a",
+                "d6ecb2395c568259",
+                "e577c1d606eb8f1c",
+                "31de3f1eaf99d04f",
+                "c1c37c0c0546f752",
+                "559b6043b64de8c2",
+                "d27af5275d73fcdd"
+            ]
+        ]
+    },
+    {
+        "id": "592e909ff5f60690",
+        "type": "debug",
+        "z": "459013ef34c440f3",
+        "name": "payload",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": true,
+        "complete": "device_tracker",
+        "targetType": "msg",
+        "statusVal": "payload",
+        "statusType": "msg",
+        "x": 500,
+        "y": 820,
+        "wires": []
+    },
+    {
+        "id": "ed7969d447559446",
+        "type": "api-current-state",
+        "z": "459013ef34c440f3",
+        "name": "FP2客廳沙發無人",
+        "server": "c8d1196d.71bef8",
+        "version": 3,
+        "outputs": 2,
+        "halt_if": "off",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "binary_sensor.presence_sensor_fp2_c63f_presence_sensor_5",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 530,
+        "y": 920,
+        "wires": [
+            [
+                "eba69ea33cf08fac"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "6dd0aa75c6afad0a",
+        "type": "api-current-state",
+        "z": "459013ef34c440f3",
+        "name": "FP2客廳走道無人",
+        "server": "c8d1196d.71bef8",
+        "version": 3,
+        "outputs": 2,
+        "halt_if": "off",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "binary_sensor.presence_sensor_fp2_c63f_presence_sensor_6",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 530,
+        "y": 980,
+        "wires": [
+            [
+                "4dd99b84552c4c23"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "d6ecb2395c568259",
+        "type": "api-current-state",
+        "z": "459013ef34c440f3",
+        "name": "FP2書桌走道無人",
+        "server": "c8d1196d.71bef8",
+        "version": 3,
+        "outputs": 2,
+        "halt_if": "off",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "binary_sensor.presence_sensor_fp2_c63f_presence_sensor_4",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 530,
+        "y": 1040,
+        "wires": [
+            [
+                "f724c3c7c2a28645"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "e577c1d606eb8f1c",
+        "type": "api-current-state",
+        "z": "459013ef34c440f3",
+        "name": "FP2書桌區域無人",
+        "server": "c8d1196d.71bef8",
+        "version": 3,
+        "outputs": 2,
+        "halt_if": "off",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.linp_cn_blt_3_1ktpbrjdcck00_es2_occupancy_status_p_2_1078",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 530,
+        "y": 1100,
+        "wires": [
+            [
+                "1801e0c19503df80"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "31de3f1eaf99d04f",
+        "type": "api-current-state",
+        "z": "459013ef34c440f3",
+        "name": "ES3主臥無人",
+        "server": "c8d1196d.71bef8",
+        "version": 3,
+        "outputs": 2,
+        "halt_if": "No One",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.linp_cn_blt_3_1k2q70mro4g00_es2_occupancy_status_p_2_1078",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 510,
+        "y": 1160,
+        "wires": [
+            [
+                "5de967f550c55b35"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "c1c37c0c0546f752",
+        "type": "api-current-state",
+        "z": "459013ef34c440f3",
+        "name": "ES3廚房無人",
+        "server": "c8d1196d.71bef8",
+        "version": 3,
+        "outputs": 2,
+        "halt_if": "No One",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.linp_cn_blt_3_1k2qjerr0k400_es2_occupancy_status_p_2_1078",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 510,
+        "y": 1220,
+        "wires": [
+            [
+                "c9004e2b127fd481"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "559b6043b64de8c2",
+        "type": "api-current-state",
+        "z": "459013ef34c440f3",
+        "name": "ES3浴室無人",
+        "server": "c8d1196d.71bef8",
+        "version": 3,
+        "outputs": 2,
+        "halt_if": "No One",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "sensor.linp_cn_blt_3_1k2pm3jc8ck00_es2_occupancy_status_p_2_1078",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 510,
+        "y": 1280,
+        "wires": [
+            [
+                "d246aaba3e5e5f73"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "d27af5275d73fcdd",
+        "type": "api-current-state",
+        "z": "459013ef34c440f3",
+        "name": "高精度主臥廁所無人",
+        "server": "c8d1196d.71bef8",
+        "version": 3,
+        "outputs": 2,
+        "halt_if": "off",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "binary_sensor.aqara_hi_precision_motion_sensor_occupancy",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 540,
+        "y": 1340,
+        "wires": [
+            [
+                "aa1e0e1e31bf02c4"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "4c13f43125cedf9f",
+        "type": "api-current-state",
+        "z": "459013ef34c440f3",
+        "name": "當客廳循環扇未開啟",
+        "server": "c8d1196d.71bef8",
+        "version": 3,
+        "outputs": 2,
+        "halt_if": "on",
+        "halt_if_type": "str",
+        "halt_if_compare": "is_not",
+        "entity_id": "fan.zhimi_sg_508174946_fb1_s_2_fan",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 1020,
+        "y": 740,
+        "wires": [
+            [
+                "0548313e4a971ad4"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "a7af20785e3e3424",
+        "type": "delay",
+        "z": "459013ef34c440f3",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "2",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 980,
+        "y": 800,
+        "wires": [
+            [
+                "d20f886c741af268",
+                "a90caf347c729aa5"
+            ]
+        ]
+    },
+    {
+        "id": "eba69ea33cf08fac",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "關閉客廳多燈帶",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_led_light_strip_driver_59",
+            "light.aqara_led_light_strip_driver_55",
+            "light.aqara_led_light_strip_driver_16"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 780,
+        "y": 920,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "4dd99b84552c4c23",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "關閉客廳多筒燈",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_62",
+            "light.aqara_spotlight_t2_66",
+            "light.aqara_spotlight_t2_61",
+            "light.aqara_spotlight_t2_68",
+            "light.aqara_spotlight_t2_63",
+            "light.aqara_led_light_strip_driver_54"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 780,
+        "y": 980,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f724c3c7c2a28645",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "關閉書桌筒燈燈帶",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_9",
+            "light.aqara_spotlight_t2_15",
+            "light.aqara_spotlight_t2_14",
+            "light.aqara_led_light_strip_driver_6",
+            "light.aqara_led_light_strip_driver_5"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 790,
+        "y": 1040,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "1801e0c19503df80",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "關閉書桌筒燈燈帶",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_58",
+            "light.aqara_led_light_strip_driver_10",
+            "light.aqara_spotlight_t2_2"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 790,
+        "y": 1100,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "5de967f550c55b35",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "關閉主臥多燈帶",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_led_light_strip_driver_17",
+            "light.aqara_led_light_strip_driver_19"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 780,
+        "y": 1160,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c9004e2b127fd481",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "關閉廚房筒燈燈帶",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_41",
+            "light.aqara_spotlight_t2_59",
+            "light.aqara_spotlight_t2_65",
+            "light.aqara_spotlight_t2_67",
+            "light.aqara_led_light_strip_driver_57"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 790,
+        "y": 1220,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "d246aaba3e5e5f73",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "關閉浴室多燈帶",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_led_light_strip_driver_11",
+            "light.aqara_led_light_strip_driver_3"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 780,
+        "y": 1280,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "aa1e0e1e31bf02c4",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "關閉主臥廁所多筒燈",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_6",
+            "light.aqara_spotlight_t2_21"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 800,
+        "y": 1340,
+        "wires": [
+            [
+                "c19a55216d1ae262"
+            ]
+        ]
+    },
+    {
+        "id": "0548313e4a971ad4",
+        "type": "api-current-state",
+        "z": "459013ef34c440f3",
+        "name": "當客廳溫度高於25度",
+        "server": "c8d1196d.71bef8",
+        "version": 3,
+        "outputs": 2,
+        "halt_if": "25",
+        "halt_if_type": "num",
+        "halt_if_compare": "gt",
+        "entity_id": "sensor.miaomiaoc_cn_blt_3_1log3fofsck01_t9_temperature_p_3_1001",
+        "state_type": "num",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 1280,
+        "y": 720,
+        "wires": [
+            [
+                "389326736216b9ee"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "d20f886c741af268",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "玄關天花燈帶開燈",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_on",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_led_light_strip_driver_51"
+        ],
+        "labelId": [],
+        "data": "{\t   \"brightness_pct\": 40,\t   \"color_temp_kelvin\": 4000\t}",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_on",
+        "x": 1270,
+        "y": 840,
+        "wires": [
+            [
+                "d6f231ac0720743e",
+                "8eb86fd671d7e6e0"
+            ]
+        ]
+    },
+    {
+        "id": "a90caf347c729aa5",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "玄關櫃燈帶開燈",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_on",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_led_light_strip_driver_61"
+        ],
+        "labelId": [],
+        "data": "{\t   \"brightness_pct\": 10,\t   \"color_temp_kelvin\": 3500\t}",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_on",
+        "x": 1260,
+        "y": 780,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c19a55216d1ae262",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "關閉主臥廁所開關第二鍵",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_smart_wall_switch_z1_pro_2"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 1070,
+        "y": 1340,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "389326736216b9ee",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "開啟客廳循環扇",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "fan.turn_on",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "fan.zhimi_sg_508174946_fb1_s_2_fan"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "fan",
+        "service": "turn_on",
+        "x": 1500,
+        "y": 720,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "d6f231ac0720743e",
+        "type": "delay",
+        "z": "459013ef34c440f3",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "2",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1480,
+        "y": 840,
+        "wires": [
+            [
+                "eb53785f442e735c"
+            ]
+        ]
+    },
+    {
+        "id": "8eb86fd671d7e6e0",
+        "type": "loop",
+        "z": "459013ef34c440f3",
+        "d": true,
+        "name": "",
+        "kind": "fcnt",
+        "count": "2",
+        "initial": "1",
+        "step": "1",
+        "condition": "",
+        "conditionType": "js",
+        "when": "before",
+        "enumeration": "enum",
+        "enumerationType": "msg",
+        "limit": "",
+        "loopPayload": "loop-orig",
+        "finalPayload": "final-last",
+        "x": 1950,
+        "y": 800,
+        "wires": [
+            [],
+            [
+                "d6f231ac0720743e"
+            ]
+        ]
+    },
+    {
+        "id": "eb53785f442e735c",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "客廳鞋櫃筒燈左開燈",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_on",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_61"
+        ],
+        "labelId": [],
+        "data": "{\t   \"brightness_pct\": 75,\t   \"color_temp_kelvin\": 4000\t}",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_on",
+        "x": 1260,
+        "y": 900,
+        "wires": [
+            [
+                "43bd262d20aa9198"
+            ]
+        ]
+    },
+    {
+        "id": "89a15cc7fed3f959",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "關閉客廳多燈帶",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_led_light_strip_driver_59",
+            "light.aqara_led_light_strip_driver_55",
+            "light.aqara_led_light_strip_driver_16"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 2140,
+        "y": 1320,
+        "wires": [
+            [
+                "8eb86fd671d7e6e0"
+            ]
+        ]
+    },
+    {
+        "id": "43bd262d20aa9198",
+        "type": "delay",
+        "z": "459013ef34c440f3",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "2",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1480,
+        "y": 900,
+        "wires": [
+            [
+                "53e91f29c3ebbb24"
+            ]
+        ]
+    },
+    {
+        "id": "a1dc57ca2dd289d1",
+        "type": "api-current-state",
+        "z": "459013ef34c440f3",
+        "name": "FP2客廳沙發無人",
+        "server": "c8d1196d.71bef8",
+        "version": 3,
+        "outputs": 2,
+        "halt_if": "off",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "binary_sensor.presence_sensor_fp2_c63f_presence_sensor_5",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 1910,
+        "y": 1320,
+        "wires": [
+            [
+                "89a15cc7fed3f959"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "53e91f29c3ebbb24",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "客廳鞋櫃筒燈右開燈",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_on",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_63"
+        ],
+        "labelId": [],
+        "data": "{\t   \"brightness_pct\": 75,\t   \"color_temp_kelvin\": 4000\t}",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_on",
+        "x": 1260,
+        "y": 960,
+        "wires": [
+            [
+                "52e64104cba3ae56"
+            ]
+        ]
+    },
+    {
+        "id": "ff7d970096c197fd",
+        "type": "delay",
+        "z": "459013ef34c440f3",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "30",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1680,
+        "y": 1320,
+        "wires": [
+            [
+                "a1dc57ca2dd289d1",
+                "ac5e41388d474bed",
+                "5317f8205e76f0f5"
+            ]
+        ]
+    },
+    {
+        "id": "52e64104cba3ae56",
+        "type": "delay",
+        "z": "459013ef34c440f3",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "2",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1480,
+        "y": 960,
+        "wires": [
+            [
+                "0537a699ca28de57",
+                "17952a0fc107c4e9"
+            ]
+        ]
+    },
+    {
+        "id": "5d677ef879607782",
+        "type": "delay",
+        "z": "459013ef34c440f3",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "2",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1480,
+        "y": 1260,
+        "wires": [
+            [
+                "abfd4823d2267f9c",
+                "ff7d970096c197fd"
+            ]
+        ]
+    },
+    {
+        "id": "ac5e41388d474bed",
+        "type": "api-current-state",
+        "z": "459013ef34c440f3",
+        "name": "FP2客廳走道無人",
+        "server": "c8d1196d.71bef8",
+        "version": 3,
+        "outputs": 2,
+        "halt_if": "off",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "binary_sensor.presence_sensor_fp2_c63f_presence_sensor_6",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 1910,
+        "y": 1380,
+        "wires": [
+            [
+                "a0128cc2489ab851"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "5317f8205e76f0f5",
+        "type": "api-current-state",
+        "z": "459013ef34c440f3",
+        "name": "FP2書桌走道無人",
+        "server": "c8d1196d.71bef8",
+        "version": 3,
+        "outputs": 2,
+        "halt_if": "off",
+        "halt_if_type": "str",
+        "halt_if_compare": "is",
+        "entity_id": "binary_sensor.presence_sensor_fp2_c63f_presence_sensor_4",
+        "state_type": "str",
+        "blockInputOverrides": true,
+        "outputProperties": [
+            {
+                "property": "payload",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entityState"
+            },
+            {
+                "property": "data",
+                "propertyType": "msg",
+                "value": "",
+                "valueType": "entity"
+            }
+        ],
+        "for": "0",
+        "forType": "num",
+        "forUnits": "minutes",
+        "override_topic": false,
+        "state_location": "payload",
+        "override_payload": "msg",
+        "entity_location": "data",
+        "override_data": "msg",
+        "x": 1910,
+        "y": 1440,
+        "wires": [
+            [
+                "f67d8e7f540601ec"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "0537a699ca28de57",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "客廳電器櫃+3+4筒燈開燈",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_on",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_68",
+            "light.aqara_spotlight_t2_62",
+            "light.aqara_spotlight_t2_66"
+        ],
+        "labelId": [],
+        "data": "{\t   \"brightness_pct\": 75,\t   \"color_temp_kelvin\": 4000\t }",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_on",
+        "x": 1250,
+        "y": 1020,
+        "wires": [
+            [
+                "0156ab9a2aeab7f1"
+            ]
+        ]
+    },
+    {
+        "id": "17952a0fc107c4e9",
+        "type": "delay",
+        "z": "459013ef34c440f3",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "1",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1680,
+        "y": 960,
+        "wires": [
+            [
+                "b2c436d79e38d308"
+            ]
+        ]
+    },
+    {
+        "id": "950ce469d9a3d464",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "客廳燈帶開燈",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_on",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_led_light_strip_driver_59",
+            "light.aqara_led_light_strip_driver_55"
+        ],
+        "labelId": [],
+        "data": "{\"brightness_pct\":75,\"color_temp_kelvin\":4000}",
+        "dataType": "json",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_on",
+        "x": 1280,
+        "y": 1200,
+        "wires": [
+            [
+                "5d677ef879607782",
+                "842862f11f6c93ec"
+            ]
+        ]
+    },
+    {
+        "id": "abfd4823d2267f9c",
+        "type": "delay",
+        "z": "459013ef34c440f3",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "1",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1680,
+        "y": 1260,
+        "wires": [
+            [
+                "7e59c97990c5d03e"
+            ]
+        ]
+    },
+    {
+        "id": "a0128cc2489ab851",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "關閉客廳多筒燈",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_62",
+            "light.aqara_spotlight_t2_66",
+            "light.aqara_spotlight_t2_61",
+            "light.aqara_spotlight_t2_68",
+            "light.aqara_spotlight_t2_63",
+            "light.aqara_led_light_strip_driver_54"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 2140,
+        "y": 1380,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f67d8e7f540601ec",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "關閉書桌筒燈燈帶",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_9",
+            "light.aqara_spotlight_t2_15",
+            "light.aqara_spotlight_t2_14",
+            "light.aqara_led_light_strip_driver_6",
+            "light.aqara_led_light_strip_driver_5"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 2150,
+        "y": 1440,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "0156ab9a2aeab7f1",
+        "type": "delay",
+        "z": "459013ef34c440f3",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "2",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1480,
+        "y": 1020,
+        "wires": [
+            [
+                "f16edeb2ca16583d"
+            ]
+        ]
+    },
+    {
+        "id": "b2c436d79e38d308",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "客廳鞋櫃筒燈左關燈",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_61"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 1920,
+        "y": 960,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "0afa5acb374871fa",
+        "type": "delay",
+        "z": "459013ef34c440f3",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "2",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1480,
+        "y": 1140,
+        "wires": [
+            [
+                "950ce469d9a3d464"
+            ]
+        ]
+    },
+    {
+        "id": "842862f11f6c93ec",
+        "type": "delay",
+        "z": "459013ef34c440f3",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "1",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1480,
+        "y": 1200,
+        "wires": [
+            [
+                "3be1cb6809f32ae1"
+            ]
+        ]
+    },
+    {
+        "id": "7e59c97990c5d03e",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "客廳筒燈1&2關燈",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_64",
+            "light.aqara_spotlight_t2_60"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 1910,
+        "y": 1260,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f16edeb2ca16583d",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "客廳筒燈1&2開燈",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_on",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_64",
+            "light.aqara_spotlight_t2_60"
+        ],
+        "labelId": [],
+        "data": "{\t   \"brightness_pct\": 75,\t   \"color_temp_kelvin\": 4000\t }",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_on",
+        "x": 1270,
+        "y": 1080,
+        "wires": [
+            [
+                "0afa5acb374871fa",
+                "2946d9e77a7f186d"
+            ]
+        ]
+    },
+    {
+        "id": "3be1cb6809f32ae1",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "客廳電器櫃+3+4筒燈關燈",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_68",
+            "light.aqara_spotlight_t2_62",
+            "light.aqara_spotlight_t2_66"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 1730,
+        "y": 1200,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "2946d9e77a7f186d",
+        "type": "delay",
+        "z": "459013ef34c440f3",
+        "name": "",
+        "pauseType": "delay",
+        "timeout": "1",
+        "timeoutUnits": "seconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": false,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 1480,
+        "y": 1080,
+        "wires": [
+            [
+                "5ff7565b413334bc"
+            ]
+        ]
+    },
+    {
+        "id": "5ff7565b413334bc",
+        "type": "api-call-service",
+        "z": "459013ef34c440f3",
+        "name": "客廳鞋櫃筒燈右關燈",
+        "server": "c8d1196d.71bef8",
+        "version": 7,
+        "debugenabled": false,
+        "action": "light.turn_off",
+        "floorId": [],
+        "areaId": [],
+        "deviceId": [],
+        "entityId": [
+            "light.aqara_spotlight_t2_63"
+        ],
+        "labelId": [],
+        "data": "",
+        "dataType": "jsonata",
+        "mergeContext": "",
+        "mustacheAltTags": false,
+        "outputProperties": [],
+        "queue": "none",
+        "blockInputOverrides": true,
+        "domain": "light",
+        "service": "turn_off",
+        "x": 1720,
+        "y": 1080,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c8d1196d.71bef8",
+        "type": "server",
+        "name": "Home Assistant",
+        "addon": true,
+        "rejectUnauthorizedCerts": true,
+        "ha_boolean": "",
+        "connectionDelay": false,
+        "cacheJson": false,
+        "heartbeat": false,
+        "heartbeatInterval": "",
+        "statusSeparator": "",
+        "enableGlobalContextStore": false
+    }
+]
