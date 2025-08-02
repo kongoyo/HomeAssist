@@ -1,3 +1,5 @@
+// Changelog: 7/29 - row 42 - update startsWith('No One') and change delay from 10 sec to 5 sec 
+//
 // Function Node: 主臥廁所燈光控制邏輯 (加入 60 秒關燈防抖動)
 // input: Aqara 高精度 ('on' or 'off')
 // 3 outputs for function_node:
@@ -17,7 +19,7 @@ let bathroomOffTimer = flow.get('bathroomOffTimer') || null;
 
 // --- 核心防抖動邏輯：處理計時器的啟動與取消 ---
 
-if (msg.payload === 'on') {
+if (msg.payload != 'No One') {
     // 偵測到「有人」狀態時，無論如何都要先取消任何正在等待的關燈計時器
     if (bathroomOffTimer) {
         clearTimeout(bathroomOffTimer);
@@ -37,14 +39,14 @@ if (msg.payload === 'on') {
         node.status({ fill: "blue", shape: "dot", text: "夜間/清晨有人 (02:00-08:29)" });
     }
     return outputs; // 有人時，立即返回燈光開啟指令
-} else if (msg.payload === 'off') {
+} else if (msg.payload.startsWith('No One')) {
     // 偵測到「無人」狀態時，啟動關燈防抖動計時器
     // 如果已經有計時器在跑，則不重複啟動，繼續等待現有的計時器。
     if (bathroomOffTimer) {
         node.status({ fill: "red", shape: "dot", text: "無人 - 計時器已在運行" });
         return [null, null, null]; // 不發送任何新訊息
     }
-    node.status({ fill: "red", shape: "dot", text: "主臥廁所無人 - 20秒後嘗試關燈" });
+    node.status({ fill: "red", shape: "dot", text: "主臥廁所無人 - 5秒後嘗試關燈" });
     // console.log("無人 - 啟動關燈計時器"); // 除錯用
     // 設定一個新的關燈計時器 (60 秒延遲)
     bathroomOffTimer = setTimeout(() => {
@@ -54,7 +56,7 @@ if (msg.payload === 'on') {
         flow.set('bathroomOffTimer', null);
         node.status({ fill: "red", shape: "dot", text: "主臥廁所無人 - 已關燈" });
         // console.log("關燈計時器結束 - 已關燈"); // 除錯用
-    }, 20000); // 20000 毫秒 = 20 秒延遲
+    }, 5000); // 5000 毫秒 = 5 秒延遲
     // 將計時器 ID 存入 flow context，以便其他訊息可以取消它
     flow.set('bathroomOffTimer', bathroomOffTimer);
 
