@@ -1,11 +1,11 @@
-// Function Node: 廚房區域燈光控制邏輯 (加入 1 分鐘關燈防抖動)
+// Function Node: 廚房區域燈光控制邏輯 (加入 0.5 分鐘關燈防抖動)
 // input: 來自 Join 節點的 msg.payload 物件，包含廚房感測器和油煙機開關狀態
 // 5 outputs for function_node:
 //   outputs[0]: 日常時段有人觸發 ( 09:00 ~ 01:59 )
 //   outputs[1]: 夜間/清晨時段有人觸發 ( 02:00 ~ 08:59 )
 //   outputs[2]: 用餐時段 : 判斷油煙機S1是否開啟
-//   outputs[3]: 任意時段有人超過 1 分鐘觸發
-//   outputs[4]: 無人時段 : 關燈 (延遲 1 分鐘)
+//   outputs[3]: 任意時段有人超過 10 秒鐘觸發
+//   outputs[4]: 無人時段 : 關燈 (延遲 0.5 分鐘)
 
 const now = new Date();
 const currentHour = now.getHours();
@@ -76,32 +76,32 @@ if (kitchen_es3_state.startsWith('Has One')) { // 廚房ES3感測器顯示「有
     }
     return outputs; // 有人時，立即返回燈光開啟指令
 
-} else if (kitchen_es3_state === 'No One') { // 廚房ES3感測器顯示「無人」
+} else if (kitchen_es3_state.startsWith('No One')) { // 廚房ES3感測器顯示「無人」
     // 如果已經有計時器在跑，則不重複啟動，繼續等待現有的計時器。
     if (kitchenOffTimer) {
         node.status({ fill: "red", shape: "dot", text: "廚房無人 - 計時器已在運行" });
         return null; // 不發送任何新訊息
     }
 
-    node.status({ fill: "red", shape: "dot", text: "廚房無人 - 1分鐘後嘗試關燈" });
-    
-    // 設定一個新的關燈計時器 (1 分鐘延遲)
+    node.status({ fill: "red", shape: "dot", text: "廚房無人 - 0.5 分鐘後嘗試關燈" });
+
+    // 設定一個新的關燈計時器 (0.5 分鐘延遲)
     kitchenOffTimer = setTimeout(() => {
         // 在計時器回呼函式中發送關燈指令到 outputs[4]
         const offOutputs = [null, null, null, null, null];
-        offOutputs[4] = { payload: "turn_off_lights", topic: msg.topic }; 
+        offOutputs[4] = { payload: "turn_off_lights", topic: msg.topic };
         node.send(offOutputs); // 延遲後發送關燈信號
 
         // 計時器執行完畢後，清除 flow context 中的計時器 ID
         flow.set('kitchenOffTimer', null);
         node.status({ fill: "red", shape: "dot", text: "廚房區域無人 - 已關燈" });
-    }, 60000); // 60000 毫秒 = 1 分鐘
+    }, 15000); // 15000 毫秒 = 15秒
 
     // 將計時器 ID 存入 flow context，以便後續的「有人」訊息可以取消它
     flow.set('kitchenOffTimer', kitchenOffTimer);
 
     // 在計時器啟動時，不立即發送任何訊息，等待延遲結束
-    return null; 
+    return null;
 
 } else {
     // 未知狀態
