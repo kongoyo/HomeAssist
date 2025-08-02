@@ -85,7 +85,7 @@ if (kitchen_es3_state.startsWith('Has One')) { // 廚房ES3感測器顯示「有
 
     node.status({ fill: "red", shape: "dot", text: "廚房無人 - 0.5 分鐘後嘗試關燈" });
 
-    // 設定一個新的關燈計時器 (0.5 分鐘延遲)
+    // 設定一個新的關燈計時器 (15秒延遲)
     kitchenOffTimer = setTimeout(() => {
         // 在計時器回呼函式中發送關燈指令到 outputs[4]
         const offOutputs = [null, null, null, null, null];
