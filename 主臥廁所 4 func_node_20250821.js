@@ -11,7 +11,7 @@ const currentHour = now.getHours();
 const currentMinute = now.getMinutes();
 
 // 輸出訊息的陣列，每個元素對應一個輸出埠。null 表示不發送訊息。
-const outputs = [null, null, null];
+const outputs = [null, null, null, null];
 
 // 新增 bathroomOffTimer 
 let bathroomOffTimer = flow.get('bathroomOffTimer') || null;
