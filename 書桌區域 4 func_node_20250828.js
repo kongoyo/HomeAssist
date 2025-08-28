@@ -15,30 +15,29 @@ const outputs = [null, null, null, null];
 let deskOffTimer = flow.get('deskOffTimer') || null;
 
 // 有人時取消關燈計時器
-if (msg.payload.substring(0, 7) === 'Has One') {
+if (msg.payload.startsWith('Has One')) {
   if (deskOffTimer) {
     clearTimeout(deskOffTimer);
     flow.set('deskOffTimer', null);
     node.status({ fill: "green", shape: "dot", text: "有人 - 取消關燈計時" });
   }
 
-  // 夜間 (18:00-01:59)
   if (currentHour >= 18 || currentHour < 2) {
     outputs[1] = msg;
     node.status({ fill: "yellow", shape: "dot", text: "夜間有人" });
-  }
-  // 日間 (08:30-17:59)
-  else if ((currentHour === 8 && currentMinute >= 30) || (currentHour >= 9 && currentHour < 18)) {
+  } else if (
+    (currentHour === 8 && currentMinute >= 30) ||
+    (currentHour >= 9 && currentHour < 18)
+  ) {
     outputs[0] = msg;
     node.status({ fill: "green", shape: "dot", text: "日間有人" });
-  }
-  // 清晨 (02:00-08:29)
-  else if ((currentHour >= 2 && currentHour < 8) || (currentHour === 8 && currentMinute < 30)) {
+  } else if (
+    (currentHour >= 2 && currentHour < 8) ||
+    (currentHour === 8 && currentMinute < 30)
+  ) {
     outputs[2] = msg;
     node.status({ fill: "blue", shape: "dot", text: "清晨有人" });
-  }
-  // 其他時段
-  else {
+  } else {
     outputs[3] = msg;
     node.status({ fill: "grey", shape: "dot", text: "其他時段有人" });
   }
