@@ -1,22 +1,16 @@
 // Function Node: 主臥廁所燈光控制邏輯
 // input: 米家人體es3
-// 4 outputs for function_node:
-//   outputs[0]: 日常時段有人觸發 ( 08:30 ~ 01:59)
-//   outputs[1]: 夜間/清晨時段有人觸發 ( 02:00 ~ 08:29 )
-//   outputs[2]: 無人觸發 (延遲 5 秒防抖動)
-//   outputs[3]: 持續有人超過 1 分鐘觸發
-
-const now = new Date();
-const currentHour = now.getHours();
-const currentMinute = now.getMinutes();
+// 3 outputs for function_node:
+//   outputs[0]: 有人觸發
+//   outputs[1]: 無人觸發 (延遲 5 秒防抖動)
+//   outputs[2]: 持續有人超過 10 秒觸發
 
 // 輸出訊息的陣列，每個元素對應一個輸出埠。null 表示不發送訊息。
-const outputs = [null, null, null, null];
+// 根據新的需求，我們只需要 3 個輸出。
+const outputs = [null, null, null];
 
-// 新增 bathroomOffTimer 
+// 從 flow context 獲取計時器 ID，以便在節點重啟或重新部署時能正確處理
 let bathroomOffTimer = flow.get('bathroomOffTimer') || null;
-
-// 新增 bathroomOnTimer 相關變數
 let bathroomOnTimer = flow.get('bathroomOnTimer') || null;
 let bathroomOnTimerActive = flow.get('bathroomOnTimerActive') || false;
 
@@ -31,47 +25,46 @@ if (msg.payload != 'No One') {
         // console.log("關燈計時器已取消 (有人)"); // 除錯用
     }
 
-    // --- 新增：持續有人超過 1 分鐘才觸發 outputs[3] ---
+    // --- 持續有人超過 10 秒才觸發 outputs[2] ---
     if (!bathroomOnTimerActive) {
         // 尚未啟動 timer，開始計時
         bathroomOnTimer = setTimeout(() => {
-            outputs[3] = { payload: "on_outputs[3]", topic: msg.topic };
-            node.send(outputs);
+            // 為了避免發送舊的或不相關的訊息，我們在這裡創建一個新的訊息陣列
+            const timeoutOutputs = [null, null, { payload: "on_outputs[2]", topic: msg.topic }];
+            node.send(timeoutOutputs);
             flow.set('bathroomOnTimerActive', false);
             flow.set('bathroomOnTimer', null);
-            node.status({ fill: "purple", shape: "dot", text: "持續有人超過 1 分鐘" });
-        }, 60000); // 60000 毫秒 = 1 分鐘
+            node.status({ fill: "purple", shape: "dot", text: "持續有人超過 10 秒" });
+        }, 10000); // 10000 毫秒 = 10 秒
         flow.set('bathroomOnTimer', bathroomOnTimer);
         flow.set('bathroomOnTimerActive', true);
-        node.status({ fill: "purple", shape: "ring", text: "有人計時中 (1分鐘)" });
+        // 狀態更新：顯示有人，並在計時中
+        node.status({ fill: "green", shape: "ring", text: "有人 - 計時中 (10秒)" });
     }
 
-    // outputs[0]: 日常時段有人觸發 ( 08:30 ~ 01:59)
-    if ((currentHour === 8 && currentMinute >= 30) || (currentHour > 8 && currentHour <= 23) || (currentHour >= 0 && currentHour < 2)) {
-        outputs[0] = { payload: "on_outputs[0]", topic: msg.topic };
-        node.status({ fill: "green", shape: "dot", text: "日常有人 (08:30-01:59)" });
-    } else { 
-        // outputs[1]: 夜間/清晨時段有人觸發 ( 02:00 ~ 08:29 )
-        outputs[1] = { payload: "on_outputs[1]", topic: msg.topic };
-        node.status({ fill: "blue", shape: "dot", text: "夜間/清晨有人 (02:00-08:29)" });
-    }
+    // outputs[0]: 只要有人就觸發
+    outputs[0] = { payload: "on_outputs[0]", topic: msg.topic };
+    // 狀態更新：如果計時器已在運行，保持環形狀態，否則顯示綠色點
+    if (!bathroomOnTimerActive) node.status({ fill: "green", shape: "dot", text: "有人" });
+
     return outputs;
 } else if (msg.payload.startsWith('No One')) {
     // 偵測到「無人」狀態時，啟動關燈防抖動計時器
     if (bathroomOffTimer) {
         node.status({ fill: "red", shape: "dot", text: "無人 - 計時器已在運行" });
-        return [null, null, null, null];
+        return null; // 不發送任何訊息
     }
     node.status({ fill: "red", shape: "dot", text: "主臥廁所無人 - 5秒後嘗試關燈" });
     bathroomOffTimer = setTimeout(() => {
-        outputs[2] = { payload: "on_outputs[2]", topic: msg.topic };
-        node.send(outputs);
+        // 為了避免發送舊的或不相關的訊息，我們在這裡創建一個新的訊息陣列
+        const timeoutOutputs = [null, { payload: "on_outputs[1]", topic: msg.topic }, null];
+        node.send(timeoutOutputs);
         flow.set('bathroomOffTimer', null);
         node.status({ fill: "red", shape: "dot", text: "主臥廁所無人 - 已關燈" });
     }, 5000);
     flow.set('bathroomOffTimer', bathroomOffTimer);
 
-    // --- 新增：有人 timer 取消 ---
+    // --- 當偵測到無人時，取消「持續有人」的計時器 ---
     if (bathroomOnTimer) {
         clearTimeout(bathroomOnTimer);
         flow.set('bathroomOnTimer', null);
@@ -79,14 +72,14 @@ if (msg.payload != 'No One') {
         node.status({ fill: "grey", shape: "ring", text: "無人 - 取消有人計時" });
     }
 
-    return [null, null, null, null];
+    return null; // 不立即發送任何訊息
 } else {
     node.status({ fill: "orange", shape: "dot", text: `未知狀態: ${msg.payload}` });
     if (bathroomOffTimer) {
         clearTimeout(bathroomOffTimer);
         flow.set('bathroomOffTimer', null);
     }
-    // 新增：有人 timer 取消
+    // 未知狀態也取消「持續有人」的計時器
     if (bathroomOnTimer) {
         clearTimeout(bathroomOnTimer);
         flow.set('bathroomOnTimer', null);
