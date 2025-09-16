@@ -1,0 +1,22 @@
+pnbruckner
+on Jan 9, 2024
+Contributor
+這是一個可能有效的程序。我自己試過這個方法，但沒有使用很久結果的 cookie 檔案。現在它有效，但不知道會持續多久。有些 cookies 上的時間戳記是從一年後開始，而其他的則即將過期。只有時間能告訴我們。
+
+在 Microsoft Edge 裡安裝 Cookie-Editor (https://microsoftedge.microsoft.com/addons/detail/cookieeditor/neaplmfkghagebokkhpjpoebhdledlfi)。
+管理擴充功能 -> Cookie-Editor 詳細資訊。
+檢查「允許在隱私模式中使用」。
+打開 Microsoft Edge 個人隱私瀏覽視窗。
+瀏覽至 www.google.com/maps。
+登入。
+在側欄開啟 Cookie-Editor 延伸模組。
+點擊 __Secure-1PSID 來擴展它。
+點擊「顯示進階設定」。
+取消勾選「僅限 HTTP」。
+點擊該 Cookie 的儲存按鈕。
+重複步驟 9 至 11，但針對__Secure-3PSID。
+匯出到 Netscape（這會將 Cookie 複製到 Windows 剪貼簿。）
+將剪貼簿內容儲存至適當命名的檔案（請參考 HA Google Maps 文件頁面 ），並
+放置於 HA 的設定目錄（通常為/config，但這取決於您的 HA 安裝方式。）
+關閉隱私瀏覽器視窗。
+(重新)啟動 HA。

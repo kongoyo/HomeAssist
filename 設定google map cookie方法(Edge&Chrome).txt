@@ -1,0 +1,27 @@
+pnbruckner
+on Jan 14, 2024
+Contributor
+我發現文檔頁面建議的 Google Chrome cookies 擴充功能在 Microsoft Edge 上也能正常工作。我只是試了一下。使用起來稍微簡單一點。我寫下了這個程序（也比上面的程序稍微詳細一點。）
+
+安裝「Get cookies.txt LOCALLY」(https://chrome.google.com/webstore/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
+注意這個功能在 Google Chrome 和 Microsoft Edge 上有效。
+前往擴充功能的詳細資訊頁面，並開啟「允許在隱私模式」或類似的選項（適用於 Google Chrome）。
+在隱私模式或隱私視窗模式下開啟瀏覽器。
+瀏覽至 www.google.com/maps。
+點擊右上角的「登入」方塊，並按照提示操作。
+如果出現名為「不再在此設備上詢問」的選項，請勾選它。
+打開「Get cookies.txt LOCALLY」擴充功能。一個包含所有 Cookie 的視窗應該會出現。
+確保匯出格式設定為 Netscape。
+點擊匯出所有 Cookie。
+尋找下載的 cookies.txt 檔案。依照 HA Google Maps 集成文件頁面進行重新命名。
+它應該是 .google_maps_location_sharing.cookies.SLUGIFIED_EMAIL_ADDRESS
+其中 SLUGIFIED_EMAIL_ADDRESS 是帳號 "slugified." 的電子郵件地址。
+Slugify 基本上是指將所有大寫字母改為小寫。
+將所有不是字母或數字的字元改為底線。
+例如，如果電子郵件地址是 This.is.My-Email_Address@gmail.com ，則產生的 cookie 檔案
+name 應為: .google_maps_location_sharing.cookies.this_is_my_email_address_gmail_com
+小心檢查檔案名稱後綴是否不存在（例如 .txt）。
+將那個 cookie 檔複製到您的 Home Assistant 設定目錄，通常是
+/config，或配置.yaml 所在的目錄。
+關閉瀏覽器，但請勿登出。
+(重新)啟動 HA。
