@@ -1,98 +1,96 @@
 // Function Node: 整合主臥區域燈光時間判斷與開關燈邏輯
 // msg.payload 來自感應器狀態 ('Has One' 或 'No One')
 
-// 新增一個 output 用於「無人超過30分鐘」警告
-const outputs = [null, null, null, null, null]; // 多一個 output
+const NO_ONE_DEBOUNCE_MS = 2000; // 2 秒，用於關燈防抖
+// --- 設定常數 ---
+const DAILY_START_HOUR = 9;
+const NIGHT_START_HOUR = 2;
+const NO_ONE_TIMEOUT_MS = 30 * 60 * 1000; // 30 分鐘
 
-const lastNoOneTime = context.get('lastNoOneTime') || null;
-const lastHasOneTime = context.get('lastHasOneTime') || null;
+// --- 輔助函式 ---
+function isDailyHours(hour) {
+    // 日常時段: 09:00 - 01:59
+    return (hour >= DAILY_START_HOUR && hour <= 23) || (hour >= 0 && hour < NIGHT_START_HOUR);
+}
+
+function isNightHours(hour) {
+    // 夜間/清晨時段: 02:00 - 08:59
+    return hour >= NIGHT_START_HOUR && hour < DAILY_START_HOUR;
+}
+
 const now = new Date();
 const currentHour = now.getHours();
-const currentMinute = now.getMinutes();
 
-// if (msg.payload.substring(0, 7) === 'Has One') {
+// outputs[0]: 日常有人 (09:00 - 01:59)
+// outputs[1]: 夜間/清晨有人 (02:00 - 08:59)
+// outputs[2]: 日常無人
+// outputs[3]: 夜間/清晨無人
+// outputs[4]: 無人超過30分鐘警告
+const outputs = [null, null, null, null, null];
+
 if (msg.payload.startsWith('Has One')) {
-    // 有人時，記錄時間
-    context.set('lastHasOneTime', now.getTime());
-    // 清除無人計時器
-    const timer = context.get('noOneTimer');
-    if (timer) {
-        clearTimeout(timer);
-        context.set('noOneTimer', null);
+    // 有人進入，清除所有計時器
+    const longTimer = context.get('noOneLongTimer');
+    if (longTimer) {
+        clearTimeout(longTimer);
+        context.set('noOneLongTimer', null);
     }
-    // 判斷是否在日常時段 (09:00 - 01:59)
-    // 這包含了跨午夜的情況： 09:00 至 23:59 或 00:00 至 01:59
-    if ((currentHour > 9 && currentHour <= 23) || (currentHour >= 0 && currentHour < 2)) {
-        // 發送到輸出 1，用於日常開啟主臥筒燈燈帶 (50% 亮度)
+    const debounceTimer = context.get('noOneDebounceTimer');
+    if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        context.set('noOneDebounceTimer', null);
+        // 狀態更新，告知使用者關燈已被取消
+        node.status({ fill: "green", shape: "dot", text: `有人 - 取消關燈 (${now.toLocaleTimeString()})` });
+    }
+
+    if (isDailyHours(currentHour)) {
         outputs[0] = { payload: "on_normal", topic: msg.topic }; // 使用 payload "on_normal" 區分
-        node.status({ fill: "green", shape: "dot", text: "主臥日常有人 (08:30-01:59)" });
-    }
-    // 判斷是否在夜間/清晨時段 (02:00 - 08:59)
-    else if (currentHour >= 2 && currentHour < 9) {
-        // 發送到輸出 2，用於夜間/清晨開啟主臥筒燈燈帶 (30% 亮度)
+        node.status({ fill: "green", shape: "dot", text: `日常有人 (${now.toLocaleTimeString()})` });
+    } else if (isNightHours(currentHour)) {
         outputs[1] = { payload: "on_dim", topic: msg.topic }; // 使用 payload "on_dim" 區分
-        node.status({ fill: "yellow", shape: "dot", text: "主臥夜間/清晨有人 (02:00-08:29)" });
-    }
-    // 如果有其他時段，或者不符合上述條件，可以考慮預設動作或 debug
-    else {
-        // 如果有未定義的「有人」時段，可以發送一個預設的開燈信號，或者不動作
-        // outputs[0] = { payload: "on_default", topic: msg.topic }; // 範例：預設開燈
+        node.status({ fill: "yellow", shape: "dot", text: `夜間有人 (${now.toLocaleTimeString()})` });
+    } else {
         node.status({ fill: "grey", shape: "dot", text: "主臥未定義時段有人" });
     }
-// } else if (msg.payload === 'No One') {
+    return outputs; // 有人時，直接返回結果，結束函式
+
 } else if (msg.payload.startsWith('No One')) {
-    // 狀態從有人變成無人時才記錄時間並啟動計時器
-    if (!lastNoOneTime || (lastHasOneTime && lastHasOneTime > lastNoOneTime)) {
-        context.set('lastNoOneTime', now.getTime());
-        // 清除舊的計時器
-        const timer = context.get('noOneTimer');
-        if (timer) {
-            clearTimeout(timer);
-        }
+    // 處理「無人超過30分鐘」的長計時器
+    if (!context.get('noOneLongTimer')) {
         // 啟動新的30分鐘計時器
         const newTimer = setTimeout(() => {
-            // 檢查狀態是否仍為No One
-            const lastNoOneTimeCheck = context.get('lastNoOneTime');
-            const lastHasOneTimeCheck = context.get('lastHasOneTime');
-            if (lastNoOneTimeCheck && (!lastHasOneTimeCheck || lastNoOneTimeCheck > lastHasOneTimeCheck)) {
-                node.send([null, null, null, null, { payload: "no_one_30min", topic: msg.topic }]);
-                node.status({ fill: "blue", shape: "dot", text: "主臥無人超過30分鐘" });
+            // 30分鐘後，發送警告訊息到第5個輸出
+            node.send([null, null, null, null, { payload: "no_one_30min", topic: "master_bedroom_alert" }]);
+            node.status({ fill: "blue", shape: "dot", text: `主臥無人超過30分鐘 (${new Date().toLocaleTimeString()})` });
+            context.set('noOneLongTimer', null); // 計時器觸發後清除自身
+        }, NO_ONE_TIMEOUT_MS);
+        context.set('noOneLongTimer', newTimer);
+    }
+
+    // --- 新增：關燈防抖動邏輯 ---
+    // 檢查是否已有「關燈防抖」計時器在運行，若無則啟動
+    if (!context.get('noOneDebounceTimer')) {
+        node.status({ fill: "red", shape: "ring", text: `無人 - ${NO_ONE_DEBOUNCE_MS / 1000}秒後關燈...` });
+        const newDebounceTimer = setTimeout(() => {
+            const offOutputs = [null, null, null, null, null];
+            // 根據時間段觸發不同的關燈輸出
+            if (isDailyHours(currentHour)) {
+                offOutputs[2] = { payload: "off", topic: msg.topic };
+                node.status({ fill: "red", shape: "dot", text: `日常關燈 (${new Date().toLocaleTimeString()})` });
+            } else if (isNightHours(currentHour)) {
+                offOutputs[3] = { payload: "off", topic: msg.topic };
+                node.status({ fill: "red", shape: "dot", text: `夜間關燈 (${new Date().toLocaleTimeString()})` });
             }
-        }, 1800000); // 30分鐘
-        context.set('noOneTimer', newTimer);
+            node.send(offOutputs);
+            context.set('noOneDebounceTimer', null); // 計時器觸發後清除
+        }, NO_ONE_DEBOUNCE_MS);
+        context.set('noOneDebounceTimer', newDebounceTimer);
     }
-    // 無人時，記錄時間
-    context.set('lastNoOneTime', now.getTime());
-    // 當主臥無人時，發送一個信號到輸出 3，觸發關燈邏輯
-    if ((currentHour > 9 && currentHour <= 23) || (currentHour >= 0 && currentHour < 2)) {
-        // 發送到輸出 2，用於日常關閉主臥筒燈燈帶
-        outputs[2] = { payload: "off", topic: msg.topic }; // 使用 payload "off" 觸發關燈
-        node.status({ fill: "red", shape: "dot", text: "主臥區域日常無人" });
-    }
-    // 判斷是否在夜間/清晨時段 (02:00 - 08:59)
-    else if (currentHour >= 2 && currentHour < 9) {
-        // 發送到輸出 3，用於夜間/清晨關閉主臥廁所筒燈
-        outputs[3] = { payload: "off", topic: msg.topic }; // 使用 payload "off" 觸發關燈
-        node.status({ fill: "red", shape: "dot", text: "主臥區域夜間/清晨無人" });
-    }
-    // 如果有其他時段，或者不符合上述條件，可以考慮預設動作或 debug
-    else {
-        // 如果有未定義的「有人」時段，可以發送一個預設的開燈信號，或者不動作
-        // outputs[0] = { payload: "on_default", topic: msg.topic }; // 範例：預設開燈
-        node.status({ fill: "grey", shape: "dot", text: "主臥未定義時段有人" });
-    }
+
+    return null; // 無人時不立即發送訊息，等待計時器觸發
+
 } else {
     // 如果收到了其他非 'Has One' 或 'No One' 的狀態，例如 sensor 無效或初始化狀態
     node.status({ fill: "orange", shape: "dot", text: "未知狀態: " + msg.payload });
+    return null; // 未知狀態不發送任何訊息
 }
-
-// 判斷是否「無人」且已超過30分鐘
-if (lastNoOneTime && (!lastHasOneTime || lastNoOneTime > lastHasOneTime)) {
-    const diffMinutes = (now.getTime() - lastNoOneTime) / 1000 / 60;
-    if (diffMinutes >= 1) {
-        outputs[4] = { payload: "no_one_30min", topic: msg.topic };
-        node.status({ fill: "blue", shape: "dot", text: "主臥無人超過30分鐘" });
-    }
-}
-
-return outputs;

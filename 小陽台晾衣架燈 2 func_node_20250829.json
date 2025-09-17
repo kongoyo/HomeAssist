@@ -1,0 +1,93 @@
+[
+    {
+        "id": "sensor",
+        "type": "server-state-changed",
+        "name": "小陽台人體E1偵測",
+        "server": "c8d1196d.71bef8",
+        "entities": {
+            "entity": [
+                "binary_sensor.xiao_yang_tai_ren_ti_e1zhen_ce_you_ren_occupancy"
+            ]
+        },
+        "outputOnlyOnStateChange": true,
+        "x": 300,
+        "y": 880,
+        "wires": [
+            [
+                "switch"
+            ]
+        ]
+    },
+    {
+        "id": "switch",
+        "type": "switch",
+        "name": "判斷有人/無人",
+        "property": "payload",
+        "rules": [
+            {
+                "t": "eq",
+                "v": "on",
+                "vt": "str"
+            },
+            {
+                "t": "eq",
+                "v": "off",
+                "vt": "str"
+            }
+        ],
+        "x": 500,
+        "y": 880,
+        "wires": [
+            [
+                "turn_on"
+            ],
+            [
+                "turn_off"
+            ]
+        ]
+    },
+    {
+        "id": "turn_on",
+        "type": "api-call-service",
+        "name": "開啟晾衣架燈",
+        "server": "c8d1196d.71bef8",
+        "action": "light.turn_on",
+        "entityId": [
+            "light.lumi_cn_497674313_acn02_s_3_light"
+        ],
+        "x": 700,
+        "y": 860,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "turn_off",
+        "type": "api-call-service",
+        "name": "關閉晾衣架燈",
+        "server": "c8d1196d.71bef8",
+        "action": "light.turn_off",
+        "entityId": [
+            "light.lumi_cn_497674313_acn02_s_3_light"
+        ],
+        "x": 700,
+        "y": 900,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "c8d1196d.71bef8",
+        "type": "server",
+        "name": "Home Assistant",
+        "addon": true,
+        "rejectUnauthorizedCerts": true,
+        "ha_boolean": "",
+        "connectionDelay": false,
+        "cacheJson": false,
+        "heartbeat": false,
+        "heartbeatInterval": "",
+        "statusSeparator": "",
+        "enableGlobalContextStore": false
+    }
+]

@@ -61,7 +61,7 @@ if (msg.payload === 'on') {
                 node.status({ fill: "yellow", shape: "dot", text: "持續10秒有人 (12:00-01:59)" });
             }
             flow.set('prolongedPresenceTimer', null); // Clear timer ID after it fires
-        }, 10000); // 10 seconds
+        }, 5000); // 10 seconds
         flow.set('prolongedPresenceTimer', prolongedPresenceTimer); // Store timer ID
     }
     return outputs; // Send the immediate 'on' output(s)
